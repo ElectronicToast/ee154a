@@ -15,7 +15,7 @@
 #include "Wire.h"
 #include "SPI.h"
 
-#define CS_PIN        4
+#define CS_PIN        10
 
 #define START_TEMP    -30
 #define TEMP_INC      5
