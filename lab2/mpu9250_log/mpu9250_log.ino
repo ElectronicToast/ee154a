@@ -21,6 +21,7 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+#include "Wire.h"
 #include "MPU9250.h"
 
 // an MPU9250 object with the MPU-9250 sensor on I2C bus 0 with address 0x68
@@ -32,6 +33,9 @@ void setup() {
   Serial.begin(115200);
   while(!Serial) {}
 
+  // Change I2C rate
+  //Wire.setClock(400000);
+  
   // start communication with IMU 
   status = IMU.begin();
   if (status < 0) {
