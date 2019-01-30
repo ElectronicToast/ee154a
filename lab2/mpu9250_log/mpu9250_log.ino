@@ -34,6 +34,9 @@ void setup() {
   while(!Serial) {}
 
   // Change I2C rate
+  // Supported on Due (SAM3X8E):
+  //     Standard - 100 kbit
+  //     Fast     - 400 kbit
   //Wire.setClock(400000);
   
   // start communication with IMU 
