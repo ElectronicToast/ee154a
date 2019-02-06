@@ -69,6 +69,18 @@ void loop() {
   Serial.print("\t");
   Serial.print(p_c.z,6);
   Serial.print("\t");
-  Serial.println(t,6);
+  Serial.print(t,6);
+  Serial.print("\t");
+    Serial.print(IMU.getGyroX_rads(),6);
+  Serial.print("\t");
+  Serial.print(IMU.getGyroY_rads(),6);
+  Serial.print("\t");
+  Serial.print(IMU.getGyroZ_rads(),6);
+  Serial.print("\t");
+  Serial.print(IMU.getMagX_uT(),6);
+  Serial.print("\t");
+  Serial.print(IMU.getMagY_uT(),6);
+  Serial.print("\t");
+  Serial.println(IMU.getMagZ_uT(),6);
   delay(1000);
 }

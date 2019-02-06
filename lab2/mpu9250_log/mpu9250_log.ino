@@ -27,10 +27,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SO
 // an MPU9250 object with the MPU-9250 sensor on I2C bus 0 with address 0x68
 MPU9250 IMU(Wire,0x68);
 int status;
+int n_iters = 0;
+long start_t;
+int val;
 
 void setup() {
   // serial to display data
-  Serial.begin(115200);
+  Serial.begin(9600);
   while(!Serial) {}
 
   // Change I2C rate
@@ -48,12 +51,12 @@ void setup() {
     Serial.println(status);
     while(1) {}
   }
+  start_t = millis();
 }
 
 void loop() {
   // read the sensor
   IMU.readSensor();
-  // display the data
   Serial.print(IMU.getAccelX_mss(),6);
   Serial.print("\t");
   Serial.print(IMU.getAccelY_mss(),6);
@@ -64,14 +67,10 @@ void loop() {
   Serial.print("\t");
   Serial.print(IMU.getGyroY_rads(),6);
   Serial.print("\t");
-  Serial.print(IMU.getGyroZ_rads(),6);
-  Serial.print("\t");
-  Serial.print(IMU.getMagX_uT(),6);
-  Serial.print("\t");
-  Serial.print(IMU.getMagY_uT(),6);
-  Serial.print("\t");
-  Serial.print(IMU.getMagZ_uT(),6);
-  Serial.print("\t");
-  Serial.println(IMU.getTemperature_C(),6);
-  delay(100);
+  Serial.println(IMU.getGyroZ_rads(),6);
+  n_iters++;
+  /*if(n_iters % 1000 == 0) {
+    long elapsed = millis() - start_t;
+    Serial.println(1000.0*(double)n_iters/(double)elapsed);
+  }*/
 }
