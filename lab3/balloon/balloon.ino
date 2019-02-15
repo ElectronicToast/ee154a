@@ -1,39 +1,36 @@
+/*======================================================================
+*  Program: balloon.ino
+*
+*  Description:  This program is designed for an Arduino Due to record
+*                telemetry data on a high altitude balloon. It takes
+*                the following measurements:
+*                  - GP3906 GPS Reciever (UART)
+*                        - position
+*                        - compass heading
+*                  - BME280 Temperature/Humidity/Pressure Sensor (I2C)
+*                        - external temperature
+*                        - external pressure
+*                        - external humidity
+*                  - MPU9250 IMU (I2C)
+*                        - attitude
+*                        - attitude rate
+*                        - internal temperature
+*                        - acceleration
+*                        - compas heading
+*                  - 810 kOhm Thermistor (ADC)
+*                        - battery temperature
+*                  - X Ohm Shunt Resistor (ADC)
+*                        - battery current
+*                The data is sampled periodically and stored in a
+*                comma separated values file on a micro-SD card over
+*                SPI.
+*                
+*  Authors: David Elliott, Ray Sun, Evan Yeh                
+*           EE 154a Winter 2019
+*           California Institute of Technology
+*/======================================================================
+
 #include <NMEAGPS.h>
-
-//======================================================================
-//  Program: NMEAsimple.ino
-//
-//  Description:  This program shows simple usage of NeoGPS
-//
-//  Prerequisites:
-//     1) NMEA.ino works with your device (correct TX/RX pins and baud rate)
-//     2) At least one of the RMC, GGA or GLL sentences have been enabled in NMEAGPS_cfg.h.
-//     3) Your device at least one of those sentences (use NMEAorder.ino to confirm).
-//     4) LAST_SENTENCE_IN_INTERVAL has been set to one of those sentences in NMEAGPS_cfg.h (use NMEAorder.ino).
-//     5) LOCATION and ALTITUDE have been enabled in GPSfix_cfg.h
-//
-//  'Serial' is for debug output to the Serial Monitor window.
-//
-//  License:
-//    Copyright (C) 2014-2017, SlashDevin
-//
-//    This file is part of NeoGPS
-//
-//    NeoGPS is free software: you can redistribute it and/or modify
-//    it under the terms of the GNU General Public License as published by
-//    the Free Software Foundation, either version 3 of the License, or
-//    (at your option) any later version.
-//
-//    NeoGPS is distributed in the hope that it will be useful,
-//    but WITHOUT ANY WARRANTY; without even the implied warranty of
-//    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//    GNU General Public License for more details.
-//
-//    You should have received a copy of the GNU General Public License
-//    along with NeoGPS.  If not, see <http://www.gnu.org/licenses/>.
-//
-//======================================================================
-
 #include <GPSport.h>
 #include <SPI.h>
 #include <SD.h>
