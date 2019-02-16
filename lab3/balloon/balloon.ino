@@ -56,8 +56,6 @@ gps_fix  fix; // This holds on to the latest values
 //      BME280      //
 //////////////////////
 #define SEALEVELPRESSURE_HPA (1013.25)
-#define START_TEMP    -30
-#define TEMP_INC      5
 Adafruit_BME280 bme; // I2C (pin 20,21)
 
 //////////////////////
@@ -65,6 +63,17 @@ Adafruit_BME280 bme; // I2C (pin 20,21)
 //////////////////////
 // MPU-9250 sensor on I2C bus 1 (near AREF) with address 0x68
 MPU9250 IMU(Wire1,0x68);
+
+//////////////////////
+//    THERM_PIN     //
+//////////////////////
+const int THERM_PIN = 0;
+
+//////////////////////
+//    SHUNT_PIN     //
+//////////////////////
+const int SHUNT_PIN_H = 1;
+const int SHUNT_PIN_L = 2;
 
 //////////////////////
 //     SD CARD      //
@@ -75,14 +84,14 @@ const int SDCHIPSELECT = 10;
 //////////////////////
 //      LOGGING     //
 //////////////////////
-#define LOG_RATE 1000 // Log every 1 second
+#define LOG_RATE 2000 // Log every 1 second
 // Log File Definitions:
 #define LOG_FILE_PREFIX "log" // Name of the log file.
 #define MAX_LOG_FILES 100 // Number of log files that can be made
 #define LOG_FILE_SUFFIX "csv" // Suffix of the log file
 char logFileName[13]; // Char string to store the log file name
 // Data to be logged:
-#define LOG_COLUMN_COUNT 23
+#define LOG_COLUMN_COUNT 24
 char * log_col_names[LOG_COLUMN_COUNT] = {
   (char *)"GPS_longitude", 
   (char *)"GPS_latitude", 
@@ -105,6 +114,7 @@ char * log_col_names[LOG_COLUMN_COUNT] = {
   (char *)"IMU_MagX",
   (char *)"IMU_MagY",
   (char *)"IMU_MagZ",
+  (char *)"IMU_Temp",
   (char *)"Therm_V",
   (char *)"BattTemp_V"
   }; // log_col_names is printed at the top of the file.
@@ -148,15 +158,22 @@ void setup()
   DEBUG_PORT.println("SD card initialization done.");
 
   // ------------ create new log file  ------------
+  // Each time we start, create a new file, increment the number
+  updateFileName(); 
+  // Print a header at the top of the new file
+  File logFile = SD.open(logFileName, FILE_WRITE); // Open the log file
+  if(logFile) 
+  {
+    logFile.print(buildHeader());
+    logFile.close();
+  }
+  DEBUG_PORT.print(buildHeader());
 
-  updateFileName(); // Each time we start, create a new file, increment the number
-  printHeader(); // Print a header at the top of the new file
-
-  // ------------ enable the builtin LED for blinking feedback ------------
+  // ------------ enable the builtin LED for waitForFix() ------------
   pinMode( LED_BUILTIN , OUTPUT );
 
   // uncomment when not underground
-//  waitForFix();
+  //  waitForFix();     
   
 }
 
@@ -174,91 +191,11 @@ void loop()
       // add below to if condition when not underground
       // && fix.valid.location && fix.valid.time
       if (logFile) { 
-        // ====================== Take GPS Data ======================
-        // longitude, latitude, altitude (m), speed (kph), heading (deg), date, 
-        // time, and number of satellites.
-        DEBUG_PORT.print(fix.longitude());
-        DEBUG_PORT.print(',');
-        DEBUG_PORT.print(fix.latitude());
-        DEBUG_PORT.print(',');
-        DEBUG_PORT.print(fix.altitude());
-        DEBUG_PORT.print(',');
-        DEBUG_PORT.print(fix.speed_kph());
-        DEBUG_PORT.print(',');
-        DEBUG_PORT.print(fix.heading());
-        DEBUG_PORT.print(',');
-
-        // print formated date
-        DEBUG_PORT.print(fix.dateTime.year);
-        DEBUG_PORT.print('/');
-        DEBUG_PORT.print(fix.dateTime.month);
-        DEBUG_PORT.print('/');
-        DEBUG_PORT.print(fix.dateTime.date);
-        DEBUG_PORT.print(',');
+        String data = buildData();
         
-        // print formatted time
-        if (fix.dateTime.hours < 10)
-          DEBUG_PORT.print( '0' );
-        DEBUG_PORT.print(fix.dateTime.hours);
-        DEBUG_PORT.print( ':' );
-        if (fix.dateTime.minutes < 10)
-          DEBUG_PORT.print( '0' );
-        DEBUG_PORT.print(fix.dateTime.minutes);
-        DEBUG_PORT.print( ':' );
-        if (fix.dateTime.seconds < 10)
-          DEBUG_PORT.print( '0' );
-        DEBUG_PORT.print(fix.dateTime.seconds);
-        DEBUG_PORT.print( '.' );
-        if (fix.dateTime_cs < 10)
-           DEBUG_PORT.print( '0' ); // leading zero for .05, for example
-        DEBUG_PORT.print(fix.dateTime_cs);
-        DEBUG_PORT.print(',');
+        DEBUG_PORT.print(data);
+        logFile.print(data);
         
-        DEBUG_PORT.print(fix.satellites);
-
-        // ====================== Take BME280 Data ======================
-        // temperature (C), humidity (%), pressure (kPa), altitude (m)
-        DEBUG_PORT.print(bme.readTemperature());
-        DEBUG_PORT.print(",");
-        DEBUG_PORT.print(bme.readHumidity());
-        DEBUG_PORT.print(",");
-        DEBUG_PORT.print(bme.readPressure() / 1000.0F);
-        DEBUG_PORT.print(",");
-        DEBUG_PORT.print(bme.readAltitude(SEALEVELPRESSURE_HPA));
-        DEBUG_PORT.print(",");
-        
-        // ====================== Take IMU Data ======================
-        // accel XYZ (m/s^2), gyro XYZ (rad/s^2), mag XYZ (uT), temperature (C)
-        DEBUG_PORT.print(IMU.getAccelX_mss(),6);
-        DEBUG_PORT.print(",");
-        DEBUG_PORT.print(IMU.getAccelY_mss(),6);
-        DEBUG_PORT.print(",");
-        DEBUG_PORT.print(IMU.getAccelZ_mss(),6);
-        DEBUG_PORT.print(",");
-        DEBUG_PORT.print(IMU.getGyroX_rads(),6);
-        DEBUG_PORT.print(",");
-        DEBUG_PORT.print(IMU.getGyroY_rads(),6);
-        DEBUG_PORT.print(",");
-        DEBUG_PORT.println(IMU.getGyroZ_rads(),6);
-        DEBUG_PORT.print(IMU.getMagX_uT(),6);
-        DEBUG_PORT.print(",");
-        DEBUG_PORT.print(IMU.getMagY_uT(),6);
-        DEBUG_PORT.print(",");
-        DEBUG_PORT.print(IMU.getMagZ_uT(),6);
-        DEBUG_PORT.print(",");
-        DEBUG_PORT.print(IMU.getTemperature_C(),6);
-        DEBUG_PORT.print(",");
-
-        // ====================== Take Thermistor Value ======================
-        // thermistor voltage (V)
-        DEBUG_PORT.print(9999);
-        DEBUG_PORT.print(",");
-
-        // ====================== Take Shunt Resistor Value ======================
-        // shunt resistor voltage drop (V)
-        DEBUG_PORT.print(9999);
-        
-        DEBUG_PORT.println();
         logFile.close();
         
         lastLog = millis(); // Update the lastLog variable
@@ -267,25 +204,113 @@ void loop()
   }  
 }
 
-
-// printHeader() - prints our eight column names to the top of our log file
-void printHeader()
+// builds and returns a String of comma-separated telemetry data
+// used to print to both DEBUG_PORT and log file
+String buildData()
 {
-  File logFile = SD.open(logFileName, FILE_WRITE); // Open the log file
+  String data = "";
+  data += String(fix.longitude(), 6);
+  data += String(',');
+  data += String(fix.latitude(), 6);
+  data += String(',');
+  data += String(fix.altitude(), 6);
+  data += String(',');
+  data += String(fix.speed_kph(), 6);
+  data += String(',');
+  data += String(fix.heading(), 6);
+  data += String(',');
 
-  if (logFile) // If the log file opened, print our column names to the file
+  // print formated date
+  data += String(fix.dateTime.year);
+  data += String('/');
+  data += String(fix.dateTime.month);
+  data += String('/');
+  data += String(fix.dateTime.date);
+  data += String(',');
+  
+  // print formatted time
+  if (fix.dateTime.hours < 10)
+    data += String('0' );
+  data += String(fix.dateTime.hours);
+  data += String(':' );
+  if (fix.dateTime.minutes < 10)
+    data += String('0' );
+  data += String(fix.dateTime.minutes);
+  data += String(':' );
+  if (fix.dateTime.seconds < 10)
+    data += String('0' );
+  data += String(fix.dateTime.seconds);
+  data += String('.' );
+  if (fix.dateTime_cs < 10)
+     data += String(  '0' ); // leading zero for .05, for example
+  data += String(fix.dateTime_cs);
+  data += String(',');
+  data += String(fix.satellites);
+  data += String(',');        
+
+  // ====================== Take BME280 Data ======================
+  // temperature (C), humidity (%), pressure (kPa), altitude (m)
+  data += String(bme.readTemperature(), 6);
+  data += String(",");
+  data += String(bme.readHumidity(), 6);
+  data += String(",");
+  data += String(bme.readPressure() / 1000.0F, 6);
+  data += String(",");
+  data += String(bme.readAltitude(SEALEVELPRESSURE_HPA), 6);
+  data += String(",");
+  
+  // ====================== Take IMU Data ======================
+  // accel XYZ (m/s^2), gyro XYZ (rad/s^2), mag XYZ (uT), temperature (C)
+  data += String(IMU.getAccelX_mss(), 6);
+  data += String(",");
+  data += String(IMU.getAccelY_mss(), 6);
+  data += String(",");
+  data += String(IMU.getAccelZ_mss(), 6);
+  data += String(",");
+  data += String(IMU.getGyroX_rads(), 6);
+  data += String(",");
+  data += String(IMU.getGyroY_rads(), 6);
+  data += String(",");
+  data += String(IMU.getGyroZ_rads(), 6);
+  data += String(",");
+  data += String(IMU.getMagX_uT(), 6);
+  data += String(",");
+  data += String(IMU.getMagY_uT(), 6);
+  data += String(",");
+  data += String(IMU.getMagZ_uT(), 6);
+  data += String(",");
+  data += String(IMU.getTemperature_C(), 6);
+  data += String(",");
+
+  // ====================== Take Thermistor Value ======================
+  // thermistor voltage (V)
+  data += String(analogRead(THERM_PIN), 6);
+  data += String(",");
+
+  // ====================== Take Shunt Resistor Value ======================
+  // shunt resistor voltage drop (V)
+  data += String(analogRead(SHUNT_PIN_H) - analogRead(SHUNT_PIN_L), 6);
+  
+  data += '\n';
+  return data;
+}
+
+// buildHeader() - builds the column headers to put at the top of the file
+//                 returns as a string
+String buildHeader()
+{
+  String header = "";
+
+  int i = 0;
+  for (; i < LOG_COLUMN_COUNT; i++)
   {
-    int i = 0;
-    for (; i < LOG_COLUMN_COUNT; i++)
-    {
-      DEBUG_PORT.print(log_col_names[i]);
-      if (i < LOG_COLUMN_COUNT - 1) // If it's anything but the last column
-        DEBUG_PORT.print(','); // print a comma
-      else // If it's the last column
-        DEBUG_PORT.println(); // print a new line
-    }
-    logFile.close(); // close the file
+    header += String(log_col_names[i]);
+    if (i < LOG_COLUMN_COUNT - 1) // If it's anything but the last column
+      header += String(','); // print a comma
+    else // If it's the last column
+      header += String('\n'); // print a new line
   }
+  return header;
 }
 
 // updateFileName() - Looks through the log files already present on a card,
