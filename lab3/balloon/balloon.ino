@@ -39,10 +39,10 @@
 *               SPI     SD card 
 *
 *           Analog
-*               A0      Battery thermistor
-*               A1      External thermistor 
-*               A2      Current shunt, high reading 
-*               A3      Current shunt, low reading 
+*               A0      Current shunt, high reading 
+*               A1      Current shunt, low reading 
+*               A2      Battery thermistor
+*               A3      External thermistor 
 *
 *           Digital:
 *               D10     SD card SPI chip select line 
@@ -59,10 +59,24 @@
 #include <Adafruit_BME280.h>
 #include "MPU9250.h"
 
+#define DEBUG
+#define N_TRIES_MAX 10  //how many times to attempt initialization of each sensor
+
+#ifdef DEBUG
+  #define DEBUG_PRINT(x) DEBUG_PORT.println(x)
+#else
+  #define DEBUG_PRINT(x)
+#endif
+
+// LED
+bool led_state = LOW;
+
+
 //////////////////////
 //        ADC       //
 //////////////////////
-#define ADC_MAX_VAL 4095
+#define ADC_N_BITS 10
+#define ADC_MAX_VAL 1023
 #define ADC_VREF 3.3
 
 //////////////////////
@@ -89,8 +103,8 @@ MPU9250 IMU(Wire1,0x68);
 //////////////////////
 //    THERM_PIN     //
 //////////////////////
-const int TMST_BAT_PIN = 0;
-const int TMST_EXT_PIN = 1;
+const int TMST_BAT_PIN = 2;
+const int TMST_EXT_PIN = 3;
 
 #define TMST_CAL_SLOPE -0.0713408
 #define TMST_CAL_INT 60.537128
@@ -98,11 +112,12 @@ const int TMST_EXT_PIN = 1;
 //////////////////////
 //    SHUNT_PIN     //
 //////////////////////
-#define SHUNT_RES_OHM   1.5         // Value of shunt resistor
-#define SHUNT_SCALE     -1          // Opposite of voltage divider formula
-                                    // to recover current from voltage reading
-const int SHUNT_PIN_H = 2;
-const int SHUNT_PIN_L = 3;
+#define SHUNT_RES_OHM   3.0         // Value of shunt resistor
+#define SHUNT_SCALE_H     4.13832853025937
+#define SHUNT_SCALE_L     4.323499491353
+
+const int SHUNT_PIN_H = 0;
+const int SHUNT_PIN_L = 1;
 
 //////////////////////
 //     SD CARD      //
@@ -156,57 +171,63 @@ char * log_col_names[LOG_COLUMN_COUNT] = {
 
 void setup()
 {
+  #ifdef DEBUG
   DEBUG_PORT.begin(9600);
-  while (!Serial);
-  DEBUG_PORT.print( F("BALLOON.INO: started\n") );
-
+  #endif
+  
+  DEBUG_PRINT( F("BALLOON.INO: started\n") );
+  // ------------ enable the builtin LED for debug ------------
+  pinMode( LED_BUILTIN , OUTPUT );
+  digitalWrite(LED_BUILTIN, LOW);
+  
   // ------------ initialize GPS UART port ------------
-  DEBUG_PORT.print("Initializing GPS...");
+  DEBUG_PRINT("Initializing GPS...");
   gpsPort.begin(9600);
-  DEBUG_PORT.println("GPS initialization done.");
+  DEBUG_PRINT("GPS initialization done.");
 
   // ------------ initialize BME280 I2C port ------------
-  DEBUG_PORT.print("Initializing BME280...");
-
-  if (!bme.begin()) {
-    DEBUG_PORT.println("BME280 initialization failed!");
-    while (1);
+  DEBUG_PRINT("Initializing BME280...");
+  for(int n_tries = 0; n_tries < N_TRIES_MAX; n_tries++){
+    if (!bme.begin()) {
+      DEBUG_PRINT("BME280 initialization failed!");
+    } else {
+      DEBUG_PRINT("BME280 initialization done.");
+      break;
+    }
   }
-  DEBUG_PORT.println("BME280 initialization done.");
   
   // ------------ initialize MPU9250 I2C port ------------
-  DEBUG_PORT.print("Initializing MPU9250...");
-
-  if (!IMU.begin()) {
-    DEBUG_PORT.println("MPU9250 initialization failed!");
-    while (1);
+  DEBUG_PRINT("Initializing MPU9250...");
+  for(int n_tries = 0; n_tries < N_TRIES_MAX; n_tries++){
+    if (!IMU.begin()) {
+      DEBUG_PRINT("MPU9250 initialization failed!");
+    } else {
+      DEBUG_PRINT("MPU9250 initialization done.");
+      break;
+    }
   }
-  DEBUG_PORT.println("MPU9250 initialization done.");
-  
-  // ------------ initialize SD card SPI port ------------
-  DEBUG_PORT.print("Initializing SD card...");
-
-  if (!SD.begin(SD_CS_PIN)) {
-    DEBUG_PORT.println("SD card initialization failed!");
-    while (1);
+    
+  while(!sdWorks) {  
+    // ------------ initialize SD card SPI port ------------
+    DEBUG_PRINT("Initializing SD card...");
+    if (!SD.begin(SD_CS_PIN)) {
+      DEBUG_PRINT("SD card initialization failed!");
+    } else {
+      sdWorks = true;
+      DEBUG_PRINT("SD card initialization done.");
+      // ------------ create new log file  ------------
+      // Each time we start, create a new file, increment the number
+      updateFileName(); 
+      // Print a header at the top of the new file
+      File logFile = SD.open(logFileName, FILE_WRITE); // Open the log file
+      if(logFile) 
+      {
+        logFile.print(buildHeader());
+        logFile.close();
+      }
+      DEBUG_PRINT(buildHeader());
+    }
   }
-  DEBUG_PORT.println("SD card initialization done.");
-
-  // ------------ create new log file  ------------
-  // Each time we start, create a new file, increment the number
-  updateFileName(); 
-  // Print a header at the top of the new file
-  File logFile = SD.open(logFileName, FILE_WRITE); // Open the log file
-  if(logFile) 
-  {
-    logFile.print(buildHeader());
-    logFile.close();
-  }
-  DEBUG_PORT.print(buildHeader());
-
-  // ------------ enable the builtin LED for waitForFix() ------------
-  pinMode( LED_BUILTIN , OUTPUT );
-  
 }
 
 //--------------------------
@@ -217,6 +238,10 @@ void loop()
   if ((lastLog + LOG_RATE) <= t) { // If it's been LOG_RATE milliseconds since the last log:
     while (gps.available( gpsPort )) {
       lastLog = t; // Update the lastLog variable
+      
+      led_state = !led_state;
+      digitalWrite(LED_BUILTIN, led_state);
+      
       fix = gps.read();
       IMU.readSensor();
       
@@ -224,10 +249,8 @@ void loop()
   
       if (logFile) { 
         String data = buildData();
-        
-        DEBUG_PORT.print(data);
+        DEBUG_PRINT(data);
         logFile.print(data);
-        
         logFile.close();
       }
     }
@@ -315,9 +338,11 @@ String buildData()
 
   // ====================== Take Thermistor Values ======================
   // Thermistor voltages (V)
-  
-  int tmst_bat = TMST_CAL_SLOPE * analogRead(TMST_BAT_PIN) + TMST_CAL_INT;
-  int tmst_ext = TMST_CAL_SLOPE * analogRead(TMST_EXT_PIN) + TMST_CAL_INT;
+
+  int tmst_bat_raw = analogRead(TMST_BAT_PIN);
+  int tmst_ext_raw = analogRead(TMST_EXT_PIN);
+  double tmst_bat = TMST_CAL_SLOPE * tmst_bat_raw + TMST_CAL_INT;
+  double tmst_ext = TMST_CAL_SLOPE * tmst_ext_raw + TMST_CAL_INT;
   
   data += String(tmst_bat, 6);
   data += String(",");
@@ -326,15 +351,18 @@ String buildData()
 
   // ====================== Take Shunt Resistor Value ======================
   // shunt resistor voltage readings
+  //double currsense_v = readAnalogVoltage(SHUNT_PIN_L);
   double shunt_h = readAnalogVoltage(SHUNT_PIN_H);
   double shunt_l = readAnalogVoltage(SHUNT_PIN_L);
   data += String(shunt_h, 6);
   data += String(",");
   data += String(shunt_l, 6);
   data += String(",");
+  //data += String(currsense_v, 6);
+  //data += String(",");
   // Compute the current 
-  double batt_curr = SHUNT_SCALE * (shunt_h - shunt_l) / SHUNT_RES_OHM;
-  
+  double batt_curr = (SHUNT_SCALE_H * shunt_h - SHUNT_SCALE_L * shunt_l) / SHUNT_RES_OHM;
+  //double batt_curr = (currsense_v - 0.185) * 100.0 / (0.546 - 0.185);
   data += String(batt_curr, 6);
   data += '\n';
   
@@ -361,63 +389,24 @@ String buildHeader()
 
 double readAnalogVoltage(int pin) {
   int raw = analogRead(pin);
-  DEBUG_PORT.println(raw);
   return (double)raw * (double)ADC_VREF / (double)ADC_MAX_VAL;
 }
 
 // updateFileName() - Looks through the log files already present on a card,
 // and creates a new file with an incremented file index.
-static void updateFileName()
-{
+static void updateFileName() {
   int i = 0;
-  for (; i < MAX_LOG_FILES; i++)
-  {
+  for (; i < MAX_LOG_FILES; i++) {
     memset(logFileName, 0, strlen(logFileName)); // Clear logFileName string
     // Set logFileName to "log.csv":
     sprintf(logFileName, "%s%d.%s", LOG_FILE_PREFIX, i, LOG_FILE_SUFFIX);
-    if (!SD.exists(logFileName)) // If a file doesn't exist
-    {
+    if (!SD.exists(logFileName)) {
       break; // Break out of this loop. We found our index
-    }
-    else // Otherwise:
-    {
-      DEBUG_PORT.print(logFileName);
-      DEBUG_PORT.println(" exists"); // Print a debug statement
+    } else {
+      DEBUG_PRINT(logFileName);
+      DEBUG_PRINT(" exists"); // Print a debug statement
     }
   }
-  DEBUG_PORT.print("File name: ");
-  DEBUG_PORT.println(logFileName); // Debug print the file name
+  DEBUG_PRINT("File name: ");
+  DEBUG_PRINT(logFileName); // Debug print the file name
 }
-
-
-//----------------------------------------------------------------
-//  This routine waits for GPSisr to provide 
-//  a fix that has a valid location.
-//
-//  The LED is slowly flashed while it's waiting.
-static void waitForFix()
-{
-  DEBUG_PORT.print( F("Waiting for GPS fix...") );
-
-  uint16_t lastToggle = millis();
-
-  for (;;) {
-    if (gps.available()) {
-      if (gps.read().valid.location)
-        break; // Got it!
-    }
-
-    // Slowly flash the LED until we get a fix
-    if ((uint16_t) millis() - lastToggle > 500) {
-      lastToggle += 500;
-      digitalWrite( LED_BUILTIN , !digitalRead(LED_BUILTIN ) );
-      DEBUG_PORT.write( '.' );
-    }
-  }
-  DEBUG_PORT.println();
-
-  digitalWrite( LED_BUILTIN , LOW );
-
-  gps.overrun( false ); // we had to wait a while...
-
-} // waitForFix
