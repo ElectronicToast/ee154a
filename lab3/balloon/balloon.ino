@@ -57,7 +57,13 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
 #include "MPU9250.h"
-  
+
+//////////////////////
+//        ADC       //
+//////////////////////
+#define ADC_MAX_VAL 4095
+#define ADC_VREF 3.3
+
 //////////////////////
 //        GPS       //
 //////////////////////
@@ -305,28 +311,22 @@ String buildData()
 
   // ====================== Take Thermistor Values ======================
   // Thermistor voltages (V)
-
-  float cal_slope = -0.0713408;
-  float cal_int = 60.537128;
-  
-  int tmst_bat = cal_slope*analogRead(TMST_BAT_PIN) + cal_int;
-  int tmst_ext = cal_slope*analogRead(TMST_EXT_PIN) + cal_int;
-  
-  data += String(tmst_bat, 6);
+  // Need to sale with calibration curve
+  data += String(readAnalogVoltage(TMST_BAT_PIN), 6);
   data += String(",");
-  data += String(tmst_ext, 6);
+  data += String(readAnalogVoltage(TMST_EXT_PIN), 6);
   data += String(",");
 
   // ====================== Take Shunt Resistor Value ======================
   // shunt resistor voltage readings
-  int shunt_h = analogRead(SHUNT_PIN_H);
-  int shunt_l = analogRead(SHUNT_PIN_L);
-  data += String(analogRead(SHUNT_PIN_H), 6);
+  double shunt_h = readAnalogVoltage(SHUNT_PIN_H);
+  double shunt_l = readAnalogVoltage(SHUNT_PIN_L);
+  data += String(shunt_h, 6);
   data += String(",");
-  data += String(analogRead(SHUNT_PIN_L), 6);
+  data += String(shunt_l, 6);
   data += String(",");
   // Compute the current 
-  int batt_curr = SHUNT_SCALE * (shunt_h - shunt_l) / SHUNT_RES_OHM;
+  double batt_curr = SHUNT_SCALE * (shunt_h - shunt_l) / SHUNT_RES_OHM;
   
   data += String(batt_curr, 6);
   data += '\n';
@@ -350,6 +350,12 @@ String buildHeader()
       header += String('\n'); // print a new line
   }
   return header;
+}
+
+double readAnalogVoltage(int pin) {
+  int raw = analogRead(pin);
+  DEBUG_PORT.println(raw);
+  return (double)raw * (double)ADC_VREF / (double)ADC_MAX_VAL;
 }
 
 // updateFileName() - Looks through the log files already present on a card,
