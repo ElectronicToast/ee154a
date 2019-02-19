@@ -34,7 +34,8 @@
 *
 *  Pinout:
 *           Busses
-*               I2C     BME280, MPU-9250 
+*               I2C0    BME280
+*               I2C1    MPU9250
 *               SPI     SD card 
 *
 *           Analog
