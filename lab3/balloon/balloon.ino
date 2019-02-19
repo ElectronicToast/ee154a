@@ -207,13 +207,12 @@ void setup()
     }
   }
     
-  while(!sdWorks) {  
+  while(true) {  
     // ------------ initialize SD card SPI port ------------
     DEBUG_PRINT("Initializing SD card...");
     if (!SD.begin(SD_CS_PIN)) {
       DEBUG_PRINT("SD card initialization failed!");
     } else {
-      sdWorks = true;
       DEBUG_PRINT("SD card initialization done.");
       // ------------ create new log file  ------------
       // Each time we start, create a new file, increment the number
@@ -226,6 +225,7 @@ void setup()
         logFile.close();
       }
       DEBUG_PRINT(buildHeader());
+      break;
     }
   }
 }
