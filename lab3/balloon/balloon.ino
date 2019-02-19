@@ -19,7 +19,7 @@
 *                        - internal temperature
 *                        - acceleration
 *                        - compas heading
-*                  - 810 kOhm Thermistor (ADC)
+*                  - 10 kOhm Thermistor (ADC)
 *                        - battery temperature
 *                  - X Ohm Shunt Resistor (ADC)
 *                        - battery current
@@ -31,6 +31,21 @@
 *  Authors: David Elliott, Ray Sun, Evan Yeh                
 *           EE 154a Winter 2019
 *           California Institute of Technology
+*
+*  Pinout:
+*           Busses
+*               I2C     BME280, MPU-9250 
+*               SPI     SD card 
+*
+*           Analog
+*               A0      Battery thermistor
+*               A1      External thermistor 
+*               A2      Current shunt, high reading 
+*               A3      Current shunt, low reading 
+*
+*           Digital:
+*               D10     SD card SPI chip select line 
+*     
 *  ======================================================================
 */
 
@@ -46,7 +61,7 @@
 //////////////////////
 //        GPS       //
 //////////////////////
-#define gpsPort Serial1
+#define     gpsPort     Serial1
 unsigned long lastLog = 0; // Global var to keep of last time we logged
 
 NMEAGPS  gps; // This parses the GPS characters
@@ -55,7 +70,7 @@ gps_fix  fix; // This holds on to the latest values
 //////////////////////
 //      BME280      //
 //////////////////////
-#define SEALEVELPRESSURE_HPA (1013.25)
+#define     SEALEVELPRESSURE_HPA    (1013.25)
 Adafruit_BME280 bme; // I2C (pin 20,21)
 
 //////////////////////
@@ -67,31 +82,38 @@ MPU9250 IMU(Wire1,0x68);
 //////////////////////
 //    THERM_PIN     //
 //////////////////////
-const int THERM_PIN = 0;
+const int TMST_BAT_PIN = 0;
+const int TMST_EXT_PIN = 1;
 
 //////////////////////
 //    SHUNT_PIN     //
 //////////////////////
-const int SHUNT_PIN_H = 1;
-const int SHUNT_PIN_L = 2;
+#define SHUNT_RES_OHM   1.5         // Value of shunt resistor
+#define SHUNT_SCALE     -1          // Opposite of voltage divider formula
+                                    // to recover current from voltage reading
+const int SHUNT_PIN_H = 2;
+const int SHUNT_PIN_L = 3;
 
 //////////////////////
 //     SD CARD      //
 //////////////////////
 // SPI chip select for the micro SD card
-const int SDCHIPSELECT = 10;
+#define SD_CS_PIN           10
 
 //////////////////////
 //      LOGGING     //
 //////////////////////
-#define LOG_RATE 2000 // Log every 1 second
+#define LOG_RATE            2000    // Log every 1 second
 // Log File Definitions:
-#define LOG_FILE_PREFIX "log" // Name of the log file.
-#define MAX_LOG_FILES 100 // Number of log files that can be made
-#define LOG_FILE_SUFFIX "csv" // Suffix of the log file
+#define LOG_FILE_PREFIX     "log"   // Name of the log file.
+#define MAX_LOG_FILES       100     // Number of log files that can be made
+#define LOG_FILE_SUFFIX     "csv"   // Suffix of the log file
+
 char logFileName[13]; // Char string to store the log file name
+
 // Data to be logged:
-#define LOG_COLUMN_COUNT 24
+#define LOG_COLUMN_COUNT    27
+
 char * log_col_names[LOG_COLUMN_COUNT] = {
   (char *)"GPS_longitude", 
   (char *)"GPS_latitude", 
@@ -115,8 +137,11 @@ char * log_col_names[LOG_COLUMN_COUNT] = {
   (char *)"IMU_MagY",
   (char *)"IMU_MagZ",
   (char *)"IMU_Temp",
-  (char *)"Therm_V",
-  (char *)"BattTemp_V"
+  (char *)"Therm_Batt_V",
+  (char *)"Therm_Ext_V",
+  (char *)"Batt_Shunt_H_V",
+  (char *)"Batt_Shunt_L_V",
+  (char *)"Batt_I",
   }; // log_col_names is printed at the top of the file.
 
 void setup()
@@ -151,7 +176,7 @@ void setup()
   // ------------ initialize SD card SPI port ------------
   DEBUG_PORT.print("Initializing SD card...");
 
-  if (!SD.begin(SDCHIPSELECT)) {
+  if (!SD.begin(SD_CS_PIN)) {
     DEBUG_PORT.println("SD card initialization failed!");
     while (1);
   }
@@ -282,16 +307,28 @@ String buildData()
   data += String(IMU.getTemperature_C(), 6);
   data += String(",");
 
-  // ====================== Take Thermistor Value ======================
-  // thermistor voltage (V)
-  data += String(analogRead(THERM_PIN), 6);
+  // ====================== Take Thermistor Values ======================
+  // Thermistor voltages (V)
+  // Need to sale with calibration curve
+  data += String(analogRead(TMST_BAT_PIN), 6);
+  data += String(",");
+  data += String(analogRead(TMST_EXT_PIN), 6);
   data += String(",");
 
   // ====================== Take Shunt Resistor Value ======================
-  // shunt resistor voltage drop (V)
-  data += String(analogRead(SHUNT_PIN_H) - analogRead(SHUNT_PIN_L), 6);
+  // shunt resistor voltage readings
+  int shunt_h = analogRead(SHUNT_PIN_H);
+  int shunt_l = analogRead(SHUNT_PIN_L);
+  data += String(analogRead(SHUNT_PIN_H), 6);
+  data += String(",");
+  data += String(analogRead(SHUNT_PIN_L), 6);
+  data += String(",");
+  // Compute the current 
+  int batt_curr = SHUNT_SCALE * (shunt_h - shunt_l) / SHUNT_RES_OHM;
   
+  data += String(batt_curr, 6);
   data += '\n';
+  
   return data;
 }
 
