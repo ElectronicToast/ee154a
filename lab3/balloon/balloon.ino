@@ -91,6 +91,9 @@ MPU9250 IMU(Wire1,0x68);
 const int TMST_BAT_PIN = 0;
 const int TMST_EXT_PIN = 1;
 
+#define TMST_CAL_SLOPE -0.0713408
+#define TMST_CAL_INT 60.537128
+
 //////////////////////
 //    SHUNT_PIN     //
 //////////////////////
@@ -311,10 +314,13 @@ String buildData()
 
   // ====================== Take Thermistor Values ======================
   // Thermistor voltages (V)
-  // Need to sale with calibration curve
-  data += String(readAnalogVoltage(TMST_BAT_PIN), 6);
+  
+  int tmst_bat = TMST_CAL_SLOPE * analogRead(TMST_BAT_PIN) + TMST_CAL_INT;
+  int tmst_ext = TMST_CAL_SLOPE * analogRead(TMST_EXT_PIN) + TMST_CAL_INT;
+  
+  data += String(tmst_bat, 6);
   data += String(",");
-  data += String(readAnalogVoltage(TMST_EXT_PIN), 6);
+  data += String(tmst_ext, 6);
   data += String(",");
 
   // ====================== Take Shunt Resistor Value ======================
