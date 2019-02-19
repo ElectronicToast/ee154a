@@ -309,10 +309,16 @@ String buildData()
 
   // ====================== Take Thermistor Values ======================
   // Thermistor voltages (V)
-  // Need to sale with calibration curve
-  data += String(analogRead(TMST_BAT_PIN), 6);
+
+  float cal_slope = -0.0713408;
+  float cal_int = 60.537128;
+  
+  int tmst_bat = cal_slope*analogRead(TMST_BAT_PIN) + cal_int;
+  int tmst_ext = cal_slope*analogRead(TMST_EXT_PIN) + cal_int;
+  
+  data += String(tmst_bat, 6);
   data += String(",");
-  data += String(analogRead(TMST_EXT_PIN), 6);
+  data += String(tmst_ext, 6);
   data += String(",");
 
   // ====================== Take Shunt Resistor Value ======================
