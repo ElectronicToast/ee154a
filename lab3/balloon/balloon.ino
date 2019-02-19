@@ -196,9 +196,6 @@ void setup()
 
   // ------------ enable the builtin LED for waitForFix() ------------
   pinMode( LED_BUILTIN , OUTPUT );
-
-  // uncomment when not underground
-  //  waitForFix();     
   
 }
 
@@ -206,15 +203,15 @@ void setup()
 
 void loop()
 {
-  if ((lastLog + LOG_RATE) <= millis()) { // If it's been LOG_RATE milliseconds since the last log:
+  unsigned long t = millis();
+  if ((lastLog + LOG_RATE) <= t) { // If it's been LOG_RATE milliseconds since the last log:
     while (gps.available( gpsPort )) {
+      lastLog = t; // Update the lastLog variable
       fix = gps.read();
       IMU.readSensor();
       
       File logFile = SD.open(logFileName, FILE_WRITE); // Open the log file
   
-      // add below to if condition when not underground
-      // && fix.valid.location && fix.valid.time
       if (logFile) { 
         String data = buildData();
         
@@ -222,11 +219,10 @@ void loop()
         logFile.print(data);
         
         logFile.close();
-        
-        lastLog = millis(); // Update the lastLog variable
       }
     }
-  }  
+    //DEBUG_PORT.println("Done getting GPS readings");
+  }
 }
 
 // builds and returns a String of comma-separated telemetry data
